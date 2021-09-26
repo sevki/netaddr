@@ -2,67 +2,73 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build gofuzz
-// +build gofuzz
-
 package netaddr
 
 import (
 	"bytes"
 	"encoding"
 	"fmt"
+	"io/ioutil"
 	"net"
+	"os"
 	"reflect"
 	"strings"
+	"testing"
 )
 
-func Fuzz(b []byte) int {
-	s := string(b)
+func FuzzParseIP(f *testing.F) {
+	dirents, _ := os.ReadDir("corpus")
+	for _, d := range dirents {
+		bytes, _ := ioutil.ReadFile(d.Name())
+		f.Add(string(bytes))
+	}
 
-	ip, _ := ParseIP(s)
-	checkStringParseRoundTrip(ip, parseIP)
-	checkEncoding(ip)
+	f.Fuzz(func(t *testing.T, ipstr string) {
+		s := string(ipstr)
 
-	// Check that we match the standard library's IP parser, modulo zones.
-	if !strings.Contains(s, "%") {
-		stdip := net.ParseIP(s)
-		if ip.IsZero() != (stdip == nil) {
-			fmt.Println("stdip=", stdip, "ip=", ip)
-			panic("net.ParseIP nil != ParseIP zero")
-		} else if !ip.IsZero() && !ip.Is4in6() && ip.String() != stdip.String() {
-			fmt.Println("ip=", ip, "stdip=", stdip)
-			panic("net.IP.String() != IP.String()")
+		ip, _ := ParseIP(s)
+		checkStringParseRoundTrip(ip, parseIP)
+		checkEncoding(ip)
+
+		// Check that we match the standard library's IP parser, modulo zones.
+		if !strings.Contains(s, "%") {
+			stdip := net.ParseIP(s)
+			if ip.IsZero() != (stdip == nil) {
+				fmt.Println("stdip=", stdip, "ip=", ip)
+				panic("net.ParseIP nil != ParseIP zero")
+			} else if !ip.IsZero() && !ip.Is4in6() && ip.String() != stdip.String() {
+				fmt.Println("ip=", ip, "stdip=", stdip)
+				panic("net.IP.String() != IP.String()")
+			}
 		}
-	}
-	// Check that .Next().Prior() and .Prior().Next() preserve the IP.
-	if !ip.IsZero() && !ip.Next().IsZero() && ip.Next().Prior() != ip {
-		fmt.Println("ip=", ip, ".next=", ip.Next(), ".next.prior=", ip.Next().Prior())
-		panic(".Next.Prior did not round trip")
-	}
-	if !ip.IsZero() && !ip.Prior().IsZero() && ip.Prior().Next() != ip {
-		fmt.Println("ip=", ip, ".prior=", ip.Prior(), ".prior.next=", ip.Prior().Next())
-		panic(".Prior.Next did not round trip")
-	}
+		// Check that .Next().Prior() and .Prior().Next() preserve the IP.
+		if !ip.IsZero() && !ip.Next().IsZero() && ip.Next().Prior() != ip {
+			fmt.Println("ip=", ip, ".next=", ip.Next(), ".next.prior=", ip.Next().Prior())
+			panic(".Next.Prior did not round trip")
+		}
+		if !ip.IsZero() && !ip.Prior().IsZero() && ip.Prior().Next() != ip {
+			fmt.Println("ip=", ip, ".prior=", ip.Prior(), ".prior.next=", ip.Prior().Next())
+			panic(".Prior.Next did not round trip")
+		}
 
-	port, err := ParseIPPort(s)
-	if err == nil {
+		port, err := ParseIPPort(s)
+		if err == nil {
+			checkStringParseRoundTrip(port, parseIPPort)
+			checkEncoding(port)
+		}
+		port = IPPortFrom(ip, 80)
 		checkStringParseRoundTrip(port, parseIPPort)
 		checkEncoding(port)
-	}
-	port = IPPortFrom(ip, 80)
-	checkStringParseRoundTrip(port, parseIPPort)
-	checkEncoding(port)
 
-	ipp, err := ParseIPPrefix(s)
-	if err == nil {
+		ipp, err := ParseIPPrefix(s)
+		if err == nil {
+			checkStringParseRoundTrip(ipp, parseIPPrefix)
+			checkEncoding(ipp)
+		}
+		ipp = IPPrefixFrom(ip, 8)
 		checkStringParseRoundTrip(ipp, parseIPPrefix)
 		checkEncoding(ipp)
-	}
-	ipp = IPPrefixFrom(ip, 8)
-	checkStringParseRoundTrip(ipp, parseIPPrefix)
-	checkEncoding(ipp)
-
-	return 0
+	})
 }
 
 // Hopefully some of these generic helpers will eventually make their way to the standard library.

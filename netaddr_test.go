@@ -24,7 +24,7 @@ import (
 var long = flag.Bool("long", false, "run long tests")
 
 func TestParseIP(t *testing.T) {
-	var validIPs = []struct {
+	validIPs := []struct {
 		in     string
 		ip     IP          // output of ParseIP()
 		ipaddr *net.IPAddr // output of .IPAddr()
@@ -224,7 +224,7 @@ func TestParseIP(t *testing.T) {
 		})
 	}
 
-	var invalidIPs = []string{
+	invalidIPs := []string{
 		// Empty string
 		"",
 		// Garbage non-IP
@@ -2306,8 +2306,8 @@ func TestRangePrefixes(t *testing.T) {
 			// 7 0111
 			// 8 1000
 			// 9 1001
-			//10 1010
-			//11 1011
+			// 10 1010
+			// 11 1011
 			"0.0.0.4/30",
 			"0.0.0.8/30",
 		)},
